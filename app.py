@@ -11,6 +11,40 @@ st.set_page_config(
 )
 st.title("🛰️ Evaluador de Sitios de Aterrizaje Lunar & Explorador Apollo")
 
+# --- DICCIONARIO DE CAPAS DE ALTA RESOLUCIÓN POR MISIÓN ---
+CAPAS_ALTA_RES = {
+    "Apollo 11": {
+        "nombre": "Apollo 11 Ultra Res (26cm)",
+        "url": "https://trek.nasa.gov/tiles/Moon/EQ/apollo11_26cm_mosaic_byte_geo_1_2_highContrast/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "max_native_zoom": 16,
+    },
+    "Apollo 12": {
+        "nombre": "Apollo 12 Alta Res (60x60km)",
+        "url": "https://trek.nasa.gov/tiles/Moon/EQ/A12_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "max_native_zoom": 14,
+    },
+    "Apollo 14": {
+        "nombre": "Apollo 14 Alta Res (60x60km)",
+        "url": "https://trek.nasa.gov/tiles/Moon/EQ/A14_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "max_native_zoom": 14,
+    },
+    "Apollo 15": {
+        "nombre": "Apollo 15 Alta Res (60x60km)",
+        "url": "https://trek.nasa.gov/tiles/Moon/EQ/A15_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "max_native_zoom": 14,
+    },
+    "Apollo 16": {
+        "nombre": "Apollo 16 Alta Res (60x60km)",
+        "url": "https://trek.nasa.gov/tiles/Moon/EQ/A16_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "max_native_zoom": 14,
+    },
+    "Apollo 17": {
+        "nombre": "Apollo 17 Alta Res (60x60km)",
+        "url": "https://trek.nasa.gov/tiles/Moon/EQ/A17_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
+        "max_native_zoom": 14,
+    },
+}
+
 # --- BARRA LATERAL: CONTROLES DE MISIÓN Y CAPAS ---
 st.sidebar.header("1. Sitio Candidato a Evaluar")
 nombre_sitio = st.sidebar.text_input(
@@ -31,25 +65,19 @@ fecha_inicio = st.sidebar.date_input("Fecha de Inicio", value=date(2026, 1, 20))
 fecha_fin = st.sidebar.date_input("Fecha de Fin", value=date(2026, 1, 25))
 
 st.sidebar.divider()
-st.sidebar.header("2. Referencia Histórica (Apollo)")
+st.sidebar.header("2. Explorador Misiones Apollo")
 mostrar_apollo = st.sidebar.checkbox(
-    "Mostrar Waypoints de Misión Apollo", value=True
+    "Mostrar Waypoints y Capa Alta Res Apollo", value=True
 )
 mision_apollo = st.sidebar.selectbox(
     "Seleccionar Misión NASA Moon Trek",
-    [
-        "Apollo 11",
-        "Apollo 12",
-        "Apollo 14",
-        "Apollo 15",
-        "Apollo 16",
-        "Apollo 17",
-    ],
+    list(CAPAS_ALTA_RES.keys()),
     disabled=not mostrar_apollo,
 )
 centrar_en = st.sidebar.radio(
     "Centrar mapa en:", ["Sitio Candidato", "Misión Apollo"], horizontal=True
 )
+nivel_zoom = st.sidebar.slider("Nivel de Zoom inicial", 2, 18, 12)
 
 
 # --- FUNCIONES DE CONSULTA A APIs DE LA NASA (CON CACHÉ) ---
@@ -72,7 +100,8 @@ def evaluar_sitio_lunar(nombre, lat, lon, f_inicio, f_fin):
         partes = linea.split()
         if len(partes) >= 4:
           try:
-            grados = float(partes[3])
+            # partes[-1] asegura leer siempre la Elevación real (ignorando símbolos como *m)
+            grados = float(partes[-1])
             datos.append({
                 "fecha_hora": f"{partes[0]} {partes[1]}",
                 "grados": grados,
@@ -143,7 +172,6 @@ if "error" in datos_mision:
   st.error(f"Error consultando la API de NASA Horizons: {datos_mision['error']}")
   st.stop()
 
-# Cálculos de tu analizador de ingeniería
 horas_totales = len(datos_mision["luz"])
 horas_ideales_aterrizaje = 0
 horas_peligro_termico = 0
@@ -160,7 +188,6 @@ for i in range(horas_totales):
   if tierra_grados < 10:
     perdidas_senal += 1
 
-# Veredicto automático
 if perdidas_senal == horas_totales:
   estado_veredicto = "RECHAZADO"
   mensaje_veredicto = (
@@ -210,46 +237,45 @@ df_apollo = (
     cargar_waypoints_apollo(mision_apollo) if mostrar_apollo else pd.DataFrame()
 )
 
-# Determinar centro inicial del mapa
 if (
     centrar_en == "Misión Apollo"
     and not df_apollo.empty
     and "x" in df_apollo.columns
 ):
   centro_mapa = [df_apollo["y"].mean(), df_apollo["x"].mean()]
-  zoom_inicial = 6
 else:
   centro_mapa = [latitud, longitud]
-  zoom_inicial = 5
 
 # --- CONSTRUCCIÓN DEL MAPA LUNAR (NASA MOON TREK EPSG4326) ---
 mapa = folium.Map(
     location=centro_mapa,
-    zoom_start=zoom_inicial,
+    zoom_start=nivel_zoom,
     crs="EPSG4326",
     tiles=None,
     control_scale=True,
 )
 
-# Capa 1: Mapa Base Global LRO WAC
+# CAPA 1: Mapa Base Global de la NASA (LRO WAC) con max_native_zoom=7
 folium.TileLayer(
     tiles="https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
-    attr="NASA / LRO WAC",
-    name="Superficie Lunar Global (LRO WAC)",
+    attr="NASA / LRO WAC Global",
+    name="Superficie Lunar Global (Base)",
     max_zoom=20,
-    max_native_zoom=9,
+    max_native_zoom=7,
     overlay=False,
 ).add_to(mapa)
 
-# Capa 2: Parche Ultra Alta Resolución Apollo 11 (26cm/px)
-folium.TileLayer(
-    tiles="https://trek.nasa.gov/tiles/Moon/EQ/apollo11_26cm_mosaic_byte_geo_1_2_highContrast/1.0.0/default/default028mm/{z}/{y}/{x}.png",
-    attr="NASA / LROC / Apollo 11",
-    name="Apollo 11 Ultra Resolución (26cm)",
-    max_zoom=20,
-    max_native_zoom=8,
-    overlay=True,
-).add_to(mapa)
+# CAPA 2: Parche dinámico de Alta Resolución de la misión Apollo seleccionada
+if mostrar_apollo and mision_apollo in CAPAS_ALTA_RES:
+  info_capa = CAPAS_ALTA_RES[mision_apollo]
+  folium.TileLayer(
+      tiles=info_capa["url"],
+      attr=f"NASA / LROC / {mision_apollo}",
+      name=info_capa["nombre"],
+      max_zoom=20,
+      max_native_zoom=info_capa["max_native_zoom"],
+      overlay=True,
+  ).add_to(mapa)
 
 # Marcador del Sitio Candidato Evaluado
 folium.Marker(
@@ -287,7 +313,7 @@ if (
         location=[row["y"], row["x"]],
         popup=folium.Popup(html_popup, max_width=250),
         tooltip=f"{mision_apollo}: {nombre_wp}",
-        icon=folium.Icon(color="blue", icon="flag", prefix="fa"),
+        icon=folium.Icon(color="red", icon="info-sign"),
     ).add_to(grupo_apollo)
   grupo_apollo.add_to(mapa)
 
@@ -298,8 +324,9 @@ MousePosition(
 
 # --- RENDERIZAR MAPA Y CAPTURAR CLIC ---
 st.caption(
-    "💡 Haz clic en cualquier punto de la Luna para obtener sus coordenadas o"
-    " activa las capas de resolución en la esquina superior derecha del mapa."
+    "💡 Haz clic en cualquier punto del mapa para obtener sus coordenadas o"
+    " activa/desactiva las capas de alta resolución en la esquina superior"
+    " derecha."
 )
 mapa_data = st_folium(mapa, width=1200, height=550)
 
@@ -308,14 +335,14 @@ if mapa_data and mapa_data.get("last_clicked"):
   c_lon = mapa_data["last_clicked"]["lng"]
   st.info(
       f"📍 Coordenadas seleccionadas con clic: **Latitud = {c_lat:.4f}° ,"
-      f" Longitud = {c_lon:.4f}°** (cópialas en el menú izquierdo para correr"
-      " el análisis de ingeniería en ese punto)."
+      f" Longitud = {c_lon:.4f}°** (cópialas en el panel izquierdo para"
+      " evaluarlas)."
   )
 
 # --- TABLA DE DATOS DE LA MISIÓN APOLLO ---
 if mostrar_apollo and not df_apollo.empty:
   with st.expander(
-      f"📋 Ver tabla de elementos registrados en {mision_apollo}"
+      f"📋 Elementos registrados en el sitio de {mision_apollo}"
       f" ({len(df_apollo)} puntos)"
   ):
     columnas_mostrar = [
