@@ -1,0 +1,7 @@
+streamlit
+requests
+rasterio
+matplotlib
+folium
+streamlit-folium
+numpy
