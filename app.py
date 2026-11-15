@@ -92,7 +92,6 @@ opciones_sitios = list(URLS_APOLLO.keys()) + [
 ]
 sitio_seleccionado = st.sidebar.selectbox("Sitio Lunar:", opciones_sitios, index=0)
 
-# Coordenadas por defecto según la selección
 if (
     sitio_seleccionado in banco_misiones
     and not banco_misiones[sitio_seleccionado].empty
@@ -104,7 +103,6 @@ else:
   default_lat = 23.25
   default_lon = 26.45
 
-# Actualizar coordenadas automáticamente si el usuario cambia de misión en el desplegable
 if "ultimo_sitio" not in st.session_state:
   st.session_state.ultimo_sitio = sitio_seleccionado
   st.session_state.lat_val = default_lat
@@ -256,7 +254,6 @@ with st.spinner(
       sitio_seleccionado, lat, lon, str(f_ini), str(f_fin)
   )
 
-# Procesar archivo DEM (subido o local en repo)
 info_dem = None
 if archivo_dem_subido is not None:
   with tempfile.NamedTemporaryFile(delete=False, suffix=".tif") as tmp_file:
@@ -274,7 +271,6 @@ if not datos_mision or "error" in datos_mision or len(datos_mision["luz"]) == 0:
   )
   st.stop()
 
-# Cálculos de iluminación y comunicación
 horas_totales = len(datos_mision["luz"])
 horas_luz = sum(1 for x in datos_mision["luz"] if x["visible"])
 horas_comms = sum(1 for x in datos_mision["comms"] if x["visible"])
@@ -293,7 +289,6 @@ for i in range(horas_totales):
   if tierra_grados < 10:
     perdidas_senal += 1
 
-# Evaluación de pendiente si hay DEM cargado
 riesgo_topografico = False
 if info_dem and not np.isnan(info_dem["pend_punto"]):
   if info_dem["pend_punto"] > 10.0:
@@ -361,7 +356,6 @@ c3.metric(
 )
 c4.metric("Luz Rasante (5°–20°)", f"{horas_ideales_aterrizaje} hrs")
 
-# Métricas Topográficas DEM (si existe archivo TIF)
 if info_dem:
   st.markdown("#### 🏔️ Análisis Topográfico (LOLA DEM)")
   d1, d2, d3 = st.columns(3)
@@ -379,58 +373,7 @@ if info_dem:
   )
 
 # ---------------------------------------------------------
-# 5. GRÁFICAS DE TELEMETRÍA Y DEM (MATPLOTLIB)
-# ---------------------------------------------------------
-st.subheader("📊 Gráficas de Telemetría y Topografía")
-num_cols = 3 if info_dem else 1
-fig, axes = plt.subplots(1, num_cols, figsize=(18 if info_dem else 10, 4.5))
-if num_cols == 1:
-  axes = [axes]
-
-horas_eje = range(horas_totales)
-grados_sol = [x["grados"] for x in datos_mision["luz"]]
-grados_tierra = [x["grados"] for x in datos_mision["comms"]]
-
-axes[0].plot(
-    horas_eje,
-    grados_sol,
-    label="Elevación Solar (°)",
-    color="#f39c12",
-    linewidth=2,
-)
-axes[0].plot(
-    horas_eje,
-    grados_tierra,
-    label="Elevación Tierra (°)",
-    color="#2980b9",
-    linewidth=2,
-)
-axes[0].axhline(
-    0, color="black", linestyle="--", linewidth=1, label="Horizonte (0°)"
-)
-axes[0].axhspan(
-    5, 20, color="green", alpha=0.15, label="Luz ideal descenso (5°-20°)"
-)
-axes[0].set_title(f"Telemetría de Visibilidad ({sitio_seleccionado})")
-axes[0].set_xlabel("Horas desde el inicio de la ventana")
-axes[0].set_ylabel("Grados sobre el horizonte")
-axes[0].legend(loc="best", fontsize=8)
-axes[0].grid(True, alpha=0.3)
-
-if info_dem:
-  im1 = axes[1].imshow(info_dem["matriz_alt"], cmap="terrain")
-  axes[1].set_title("Elevación Topográfica (DEM LOLA)")
-  fig.colorbar(im1, ax=axes[1], label="Altitud (m)")
-
-  im2 = axes[2].imshow(info_dem["matriz_pend"], cmap="hot_r", vmin=0, vmax=25)
-  axes[2].set_title("Mapa de Pendientes (Slopes)")
-  fig.colorbar(im2, ax=axes[2], label="Inclinación (°)")
-
-plt.tight_layout()
-st.pyplot(fig)
-
-# ---------------------------------------------------------
-# 6. MAPA INTERACTIVO FOLIUM (MOON TREK WMTS)
+# 5. MAPA INTERACTIVO FOLIUM (PRIMERO ARRIBA)
 # ---------------------------------------------------------
 st.subheader("🌍 Mapa Lunar Interactivo (NASA Moon Trek)")
 mapa = folium.Map(
@@ -441,7 +384,6 @@ mapa = folium.Map(
     control_scale=True,
 )
 
-# Capa Base Global LRO WAC
 folium.TileLayer(
     tiles="https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
     attr="NASA / LRO WAC Global",
@@ -451,7 +393,6 @@ folium.TileLayer(
     overlay=False,
 ).add_to(mapa)
 
-# Capa de Alta Resolución si es sitio Apollo
 if sitio_seleccionado in CAPAS_ALTA_RES:
   info_capa = CAPAS_ALTA_RES[sitio_seleccionado]
   folium.TileLayer(
@@ -463,7 +404,6 @@ if sitio_seleccionado in CAPAS_ALTA_RES:
       overlay=True,
   ).add_to(mapa)
 
-# Marcador principal con resumen de viabilidad
 estado_corto = (
     "VIABLE"
     if ("SITIO VIABLE" in veredicto or "ADVERTENCIA" in veredicto)
@@ -486,7 +426,6 @@ folium.Marker(
     icon=folium.Icon(color=color_pin, icon="rocket", prefix="fa"),
 ).add_to(mapa)
 
-# Waypoints secundarios si es una misión Apollo
 if sitio_seleccionado in banco_misiones:
   df_wp = banco_misiones[sitio_seleccionado]
   for _, row in df_wp.iterrows():
@@ -512,7 +451,7 @@ MousePosition(
 st.caption(
     "💡 Haz clic en cualquier punto del mapa para leer sus coordenadas exactas."
 )
-mapa_data = st_folium(mapa, width=1200, height=550)
+mapa_data = st_folium(mapa, width=1200, height=500)
 
 if mapa_data and mapa_data.get("last_clicked"):
   c_lat = mapa_data["last_clicked"]["lat"]
@@ -522,3 +461,81 @@ if mapa_data and mapa_data.get("last_clicked"):
       f" Longitud = {c_lon:.5f}°** (ingrésalas en el panel izquierdo con 'Sitio"
       " Lunar: Coordenadas Personalizadas' para simular ese punto)."
   )
+
+# ---------------------------------------------------------
+# 6. GRÁFICAS COMPACTAS DE TELEMETRÍA Y DEM (DEBAJO DEL MAPA)
+# ---------------------------------------------------------
+st.subheader("📊 Gráficas de Telemetría y Topografía")
+
+horas_eje = range(horas_totales)
+grados_sol = [x["grados"] for x in datos_mision["luz"]]
+grados_tierra = [x["grados"] for x in datos_mision["comms"]]
+
+if info_dem:
+  fig, axes = plt.subplots(1, 3, figsize=(14, 2.8))
+  axes[0].plot(
+      horas_eje,
+      grados_sol,
+      label="Elevación Solar (°)",
+      color="#f39c12",
+      linewidth=1.8,
+  )
+  axes[0].plot(
+      horas_eje,
+      grados_tierra,
+      label="Elevación Tierra (°)",
+      color="#2980b9",
+      linewidth=1.8,
+  )
+  axes[0].axhline(0, color="black", linestyle="--", linewidth=0.8)
+  axes[0].axhspan(5, 20, color="green", alpha=0.15, label="Luz ideal (5°-20°)")
+  axes[0].set_title(f"Visibilidad ({sitio_seleccionado})", fontsize=10)
+  axes[0].set_xlabel("Horas", fontsize=8)
+  axes[0].set_ylabel("Grados (°)", fontsize=8)
+  axes[0].tick_params(labelsize=8)
+  axes[0].legend(loc="best", fontsize=7)
+  axes[0].grid(True, alpha=0.3)
+
+  im1 = axes[1].imshow(info_dem["matriz_alt"], cmap="terrain")
+  axes[1].set_title("Elevación DEM LOLA", fontsize=10)
+  axes[1].tick_params(labelsize=8)
+  fig.colorbar(im1, ax=axes[1], label="Altitud (m)")
+
+  im2 = axes[2].imshow(info_dem["matriz_pend"], cmap="hot_r", vmin=0, vmax=25)
+  axes[2].set_title("Mapa de Pendientes", fontsize=10)
+  axes[2].tick_params(labelsize=8)
+  fig.colorbar(im2, ax=axes[2], label="Inclinación (°)")
+
+  plt.tight_layout()
+  st.pyplot(fig, use_container_width=False)
+else:
+  # Cuando solo hay una gráfica, la centramos en una columna más estrecha para que se vea pequeña y limpia
+  col_graf, _ = st.columns([1.3, 1])
+  with col_graf:
+    fig, ax = plt.subplots(figsize=(6.5, 2.6))
+    ax.plot(
+        horas_eje,
+        grados_sol,
+        label="Elevación Solar (°)",
+        color="#f39c12",
+        linewidth=1.8,
+    )
+    ax.plot(
+        horas_eje,
+        grados_tierra,
+        label="Elevación Tierra (°)",
+        color="#2980b9",
+        linewidth=1.8,
+    )
+    ax.axhline(
+        0, color="black", linestyle="--", linewidth=0.8, label="Horizonte (0°)"
+    )
+    ax.axhspan(5, 20, color="green", alpha=0.15, label="Luz ideal (5°-20°)")
+    ax.set_title(f"Telemetría de Visibilidad ({sitio_seleccionado})", fontsize=10)
+    ax.set_xlabel("Horas desde el inicio", fontsize=8)
+    ax.set_ylabel("Grados (°)", fontsize=8)
+    ax.tick_params(labelsize=8)
+    ax.legend(loc="best", fontsize=7)
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+    st.pyplot(fig, use_container_width=True)
