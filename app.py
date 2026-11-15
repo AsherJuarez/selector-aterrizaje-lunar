@@ -15,7 +15,7 @@ from streamlit_folium import st_folium
 st.set_page_config(
     page_title="Simulador Integral de Aterrizaje Lunar", layout="wide"
 )
-st.title("🛰️ Simulador y Analizador Integral de Aterrizaje Lunar")
+st.title(" Simulador y Analizador Integral de Aterrizaje Lunar")
 
 # ---------------------------------------------------------
 # 1. BASES DE DATOS Y CAPAS CARTOGRÁFICAS (NASA MOON TREK)
@@ -31,32 +31,32 @@ URLS_APOLLO = {
 
 CAPAS_ALTA_RES = {
     "Apollo 11": {
-        "nombre": "Apollo 11 Ultra Res (26cm)",
+        "nombre": "Apollo 11 ",
         "url": "https://trek.nasa.gov/tiles/Moon/EQ/apollo11_26cm_mosaic_byte_geo_1_2_highContrast/1.0.0/default/default028mm/{z}/{y}/{x}.png",
         "max_native_zoom": 16,
     },
     "Apollo 12": {
-        "nombre": "Apollo 12 Alta Res (60x60km)",
+        "nombre": "Apollo 12 ",
         "url": "https://trek.nasa.gov/tiles/Moon/EQ/A12_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
         "max_native_zoom": 14,
     },
     "Apollo 14": {
-        "nombre": "Apollo 14 Alta Res (60x60km)",
+        "nombre": "Apollo 14  ",
         "url": "https://trek.nasa.gov/tiles/Moon/EQ/A14_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
         "max_native_zoom": 14,
     },
     "Apollo 15": {
-        "nombre": "Apollo 15 Alta Res (60x60km)",
+        "nombre": "Apollo 15  ",
         "url": "https://trek.nasa.gov/tiles/Moon/EQ/A15_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
         "max_native_zoom": 14,
     },
     "Apollo 16": {
-        "nombre": "Apollo 16 Alta Res (60x60km)",
+        "nombre": "Apollo 16  ",
         "url": "https://trek.nasa.gov/tiles/Moon/EQ/A16_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
         "max_native_zoom": 14,
     },
     "Apollo 17": {
-        "nombre": "Apollo 17 Alta Res (60x60km)",
+        "nombre": "Apollo 17 ",
         "url": "https://trek.nasa.gov/tiles/Moon/EQ/A17_60x60km.0_3.eq/1.0.0/default/default028mm/{z}/{y}/{x}.png",
         "max_native_zoom": 14,
     },
@@ -296,7 +296,7 @@ if info_dem and not np.isnan(info_dem["pend_punto"]):
 
 # Dictamen Final de Viabilidad
 st.subheader(
-    f"📋 Reporte de Viabilidad de Ingeniería: {sitio_seleccionado.upper()}"
+    f" Reporte de Viabilidad de Ingeniería: {sitio_seleccionado.upper()}"
 )
 
 if perdidas_senal == horas_totales:
