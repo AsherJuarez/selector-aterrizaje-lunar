@@ -7,9 +7,9 @@ import streamlit as st
 from streamlit_folium import st_folium
 
 st.set_page_config(
-    page_title="Plataforma de Aterrizaje Lunar - NASA", layout="wide"
+    page_title="Simulador de Aterrizaje Lunar - NASA", layout="wide"
 )
-st.title("🛰️ Evaluador de Sitios de Aterrizaje Lunar & Explorador Apollo")
+st.title("🛰️ Simulador de Aterrizaje Lunar & Explorador Apollo")
 
 # --- DICCIONARIO DE CAPAS DE ALTA RESOLUCIÓN POR MISIÓN ---
 CAPAS_ALTA_RES = {
@@ -45,24 +45,22 @@ CAPAS_ALTA_RES = {
     },
 }
 
-# --- BARRA LATERAL: CONTROLES DE MISIÓN Y CAPAS ---
-st.sidebar.header("1. Sitio Candidato a Evaluar")
-nombre_sitio = st.sidebar.text_input(
-    "Nombre del Sitio", value="Base Tranquilidad (Custom)"
-)
+# --- BARRA LATERAL: PARÁMETROS DEL SITIO Y CAPAS ---
+st.sidebar.header("1. Parámetros del Sitio de Aterrizaje")
+nombre_sitio = st.sidebar.text_input("Nombre del Sitio", value="Custom")
 latitud = st.sidebar.number_input(
-    "Latitud Lunar (°)", min_value=-90.0, max_value=90.0, value=-3.01, step=0.05
+    "Latitud Lunar (°)", min_value=-90.0, max_value=90.0, value=23.25, step=0.05
 )
 longitud = st.sidebar.number_input(
     "Longitud Lunar (°)",
     min_value=-180.0,
     max_value=180.0,
-    value=-23.42,
+    value=26.45,
     step=0.05,
 )
 
-fecha_inicio = st.sidebar.date_input("Fecha de Inicio", value=date(2026, 1, 20))
-fecha_fin = st.sidebar.date_input("Fecha de Fin", value=date(2026, 1, 25))
+fecha_inicio = st.sidebar.date_input("Fecha de Inicio", value=date(2026, 4, 22))
+fecha_fin = st.sidebar.date_input("Fecha de Fin", value=date(2026, 4, 23))
 
 st.sidebar.divider()
 st.sidebar.header("2. Explorador Misiones Apollo")
@@ -77,10 +75,33 @@ mision_apollo = st.sidebar.selectbox(
 centrar_en = st.sidebar.radio(
     "Centrar mapa en:", ["Sitio Candidato", "Misión Apollo"], horizontal=True
 )
-nivel_zoom = st.sidebar.slider("Nivel de Zoom inicial", 2, 18, 12)
+nivel_zoom = st.sidebar.slider("Nivel de Zoom inicial", 2, 18, 8)
 
 
-# --- FUNCIONES DE CONSULTA A APIs DE LA NASA (CON CACHÉ) ---
+# --- 1. FUNCIONES BASE (Extracción con índice [-1]) ---
+def extraer_elevacion_y_grados(texto):
+  datos = []
+  guardar = False
+  for linea in texto.split("\n"):
+    if "$$EOE" in linea:
+      break
+    if guardar and linea.strip():
+      partes = linea.split()
+      if len(partes) >= 4:
+        try:
+          grados = float(partes[-1])
+          datos.append({
+              "fecha_hora": f"{partes[0]} {partes[1]}",
+              "grados": grados,
+              "visible": grados > 0,
+          })
+        except ValueError:
+          pass
+    if "$$SOE" in linea:
+      guardar = True
+  return datos
+
+
 @st.cache_data(ttl=3600)
 def evaluar_sitio_lunar(nombre, lat, lon, f_inicio, f_fin):
   base_url = "https://ssd.jpl.nasa.gov/api/horizons.api"
@@ -89,30 +110,6 @@ def evaluar_sitio_lunar(nombre, lat, lon, f_inicio, f_fin):
       f"&COORD_TYPE=GEODETIC&SITE_COORD='{lon},{lat},0'"
       f"&START_TIME='{f_inicio}'&STOP_TIME='{f_fin}'&STEP_SIZE='1%20h'&QUANTITIES='4'"
   )
-
-  def extraer_elevacion(texto):
-    datos = []
-    guardar = False
-    for linea in texto.split("\n"):
-      if "$$EOE" in linea:
-        break
-      if guardar and linea.strip():
-        partes = linea.split()
-        if len(partes) >= 4:
-          try:
-            # partes[-1] asegura leer siempre la Elevación real (ignorando símbolos como *m)
-            grados = float(partes[-1])
-            datos.append({
-                "fecha_hora": f"{partes[0]} {partes[1]}",
-                "grados": grados,
-                "visible": grados > 0,
-            })
-          except ValueError:
-            pass
-      if "$$SOE" in linea:
-        guardar = True
-    return datos
-
   try:
     res_sol = requests.get(
         base_url + params_comunes + "&COMMAND='10'", timeout=15
@@ -124,8 +121,8 @@ def evaluar_sitio_lunar(nombre, lat, lon, f_inicio, f_fin):
         "sitio": nombre,
         "lat": lat,
         "lon": lon,
-        "luz": extraer_elevacion(res_sol.get("result", "")),
-        "comms": extraer_elevacion(res_tierra.get("result", "")),
+        "luz": extraer_elevacion_y_grados(res_sol.get("result", "")),
+        "comms": extraer_elevacion_y_grados(res_tierra.get("result", "")),
     }
   except Exception as e:
     return {"error": str(e)}
@@ -156,14 +153,12 @@ def cargar_waypoints_apollo(mision):
   return pd.DataFrame()
 
 
-# --- EJECUCIÓN DEL ANÁLISIS DE INGENIERÍA ---
+# --- 2. EJECUCIÓN Y EXTRACCIÓN DE DATOS ---
 if fecha_fin <= fecha_inicio:
   st.error("La fecha de fin debe ser posterior a la fecha de inicio.")
   st.stop()
 
-with st.spinner(
-    f"Consultando efemérides NASA JPL Horizons para {nombre_sitio}..."
-):
+with st.spinner(f"Obteniendo telemetría de la NASA para: {nombre_sitio}..."):
   datos_mision = evaluar_sitio_lunar(
       nombre_sitio, latitud, longitud, str(fecha_inicio), str(fecha_fin)
   )
@@ -173,6 +168,18 @@ if "error" in datos_mision:
   st.stop()
 
 horas_totales = len(datos_mision["luz"])
+
+if horas_totales == 0:
+  st.error(
+      "ERROR: La API no devolvió datos. Revisa el formato o rango de tus"
+      " fechas."
+  )
+  st.stop()
+
+# --- 3. MOTOR DE ANÁLISIS DE INGENIERÍA ---
+horas_luz = sum(1 for x in datos_mision["luz"] if x["visible"])
+horas_comms = sum(1 for x in datos_mision["comms"] if x["visible"])
+
 horas_ideales_aterrizaje = 0
 horas_peligro_termico = 0
 perdidas_senal = 0
@@ -188,51 +195,49 @@ for i in range(horas_totales):
   if tierra_grados < 10:
     perdidas_senal += 1
 
+# Reporte de Viabilidad de Ingeniería
+st.subheader("📋 Reporte de Viabilidad de Ingeniería")
+
 if perdidas_senal == horas_totales:
   estado_veredicto = "RECHAZADO"
-  mensaje_veredicto = (
-      "RECHAZADO: Zona de sombra de radio. La Tierra no es visible a un grado"
-      " seguro (<10°)."
-  )
   color_pin = "red"
-  st.error(f"🚨 **{mensaje_veredicto}**")
+  st.error(
+      "🚨 **RECHAZADO:** Zona de sombra de radio. La Tierra no es visible a un"
+      " grado seguro (<10°)."
+  )
 elif horas_ideales_aterrizaje == 0:
   estado_veredicto = "MARGINAL"
-  mensaje_veredicto = (
-      "MARGINAL: No hay ventanas de luz rasante (5°–20°) en este periodo."
-      " Aterrizaje a ciegas o con sobrecalentamiento."
-  )
   color_pin = "orange"
-  st.warning(f"⚠️ **{mensaje_veredicto}**")
+  st.warning(
+      "⚠️ **MARGINAL:** No hay ventanas de luz rasante (5°–20°) en este"
+      " periodo. Aterrizaje a ciegas o con sobrecalentamiento."
+  )
 elif horas_peligro_termico > (horas_totales / 2):
   estado_veredicto = "ADVERTENCIA"
-  mensaje_veredicto = (
-      "ADVERTENCIA: Alto riesgo térmico (>70°). La mayor parte de la misión"
-      " transcurrirá bajo luz solar extrema."
-  )
   color_pin = "orange"
-  st.warning(f"🔥 **{mensaje_veredicto}**")
+  st.warning(
+      "🔥 **ADVERTENCIA:** Alto riesgo térmico (>70°). La mayor parte de la"
+      " misión transcurrirá bajo luz solar extrema."
+  )
 else:
   estado_veredicto = "VIABLE"
-  mensaje_veredicto = (
-      f"SITIO VIABLE: Se encontraron {horas_ideales_aterrizaje} horas de"
-      " iluminación ideal (5°–20°) para el descenso. Conexión con Tierra"
-      " aceptable."
-  )
   color_pin = "green"
-  st.success(f"✅ **{mensaje_veredicto}**")
+  st.success(
+      f"✅ **SITIO VIABLE:** Se encontraron **{horas_ideales_aterrizaje}"
+      " horas** de iluminación ideal (sombras largas, 5°–20°) para el"
+      " descenso. Calidad de conexión con Tierra: Aceptable (evitando el"
+      " horizonte montañoso)."
+  )
 
-# --- MÉTRICAS CLAVE ---
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("Veredicto Ingeniería", estado_veredicto)
-c2.metric(
-    "Luz Rasante Ideal (5°–20°)",
-    f"{horas_ideales_aterrizaje} h / {horas_totales} h",
-)
-c3.metric("Peligro Térmico (>70°)", f"{horas_peligro_termico} h")
-c4.metric("Riesgo Pérdida Señal (<10°)", f"{perdidas_senal} h")
+# Tarjetas con métricas exactas de telemetría
+m1, m2, m3, m4, m5 = st.columns(5)
+m1.metric("Estado", estado_veredicto)
+m2.metric("Ventana Total", f"{horas_totales} h")
+m3.metric("Luz Solar Directa", f"{horas_luz} h")
+m4.metric("Señal a la Tierra", f"{horas_comms} h")
+m5.metric("Luz Ideal (5°–20°)", f"{horas_ideales_aterrizaje} h")
 
-# --- CARGA DE DATOS APOLLO ---
+# --- 4. VISUALIZACIÓN CARTOGRÁFICA ---
 df_apollo = (
     cargar_waypoints_apollo(mision_apollo) if mostrar_apollo else pd.DataFrame()
 )
@@ -246,7 +251,6 @@ if (
 else:
   centro_mapa = [latitud, longitud]
 
-# --- CONSTRUCCIÓN DEL MAPA LUNAR (NASA MOON TREK EPSG4326) ---
 mapa = folium.Map(
     location=centro_mapa,
     zoom_start=nivel_zoom,
@@ -255,7 +259,7 @@ mapa = folium.Map(
     control_scale=True,
 )
 
-# CAPA 1: Mapa Base Global de la NASA (LRO WAC) con max_native_zoom=7
+# Capa 1: Mapa Base Global de la NASA (LRO WAC)
 folium.TileLayer(
     tiles="https://trek.nasa.gov/tiles/Moon/EQ/LRO_WAC_Mosaic_Global_303ppd_v02/1.0.0/default/default028mm/{z}/{y}/{x}.jpg",
     attr="NASA / LRO WAC Global",
@@ -265,7 +269,7 @@ folium.TileLayer(
     overlay=False,
 ).add_to(mapa)
 
-# CAPA 2: Parche dinámico de Alta Resolución de la misión Apollo seleccionada
+# Capa 2: Parche dinámico de Alta Resolución de la misión Apollo seleccionada
 if mostrar_apollo and mision_apollo in CAPAS_ALTA_RES:
   info_capa = CAPAS_ALTA_RES[mision_apollo]
   folium.TileLayer(
@@ -277,19 +281,21 @@ if mostrar_apollo and mision_apollo in CAPAS_ALTA_RES:
       overlay=True,
   ).add_to(mapa)
 
-# Marcador del Sitio Candidato Evaluado
+# Marcador del Sitio Evaluado
 folium.Marker(
     location=[latitud, longitud],
     popup=(
-        f"<b>{nombre_sitio}</b><br>Estado: {estado_veredicto}<br>Luz ideal:"
-        f" {horas_ideales_aterrizaje}h<br>Peligro térmico:"
-        f" {horas_peligro_termico}h"
+        f"<b>{nombre_sitio}</b><br>"
+        f"Veredicto: {estado_veredicto}<br>"
+        f"Luz directa: {horas_luz}h / {horas_totales}h<br>"
+        f"Señal Tierra: {horas_comms}h / {horas_totales}h<br>"
+        f"Luz ideal descenso: {horas_ideales_aterrizaje}h"
     ),
     tooltip=f"🎯 {nombre_sitio} ({estado_veredicto})",
     icon=folium.Icon(color=color_pin, icon="rocket", prefix="fa"),
 ).add_to(mapa)
 
-# Marcadores de los Waypoints de la Misión Apollo seleccionada
+# Marcadores de Waypoints de la Misión Apollo seleccionada
 if (
     mostrar_apollo
     and not df_apollo.empty
@@ -322,11 +328,9 @@ MousePosition(
     position="bottomleft", separator=" | Lon: ", prefix="Lat: "
 ).add_to(mapa)
 
-# --- RENDERIZAR MAPA Y CAPTURAR CLIC ---
 st.caption(
-    "💡 Haz clic en cualquier punto del mapa para obtener sus coordenadas o"
-    " activa/desactiva las capas de alta resolución en la esquina superior"
-    " derecha."
+    "💡 Haz clic en cualquier punto del mapa lunar para ver sus coordenadas o"
+    " activa las capas de resolución en la esquina superior derecha."
 )
 mapa_data = st_folium(mapa, width=1200, height=550)
 
