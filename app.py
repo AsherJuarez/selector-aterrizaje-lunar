@@ -305,35 +305,35 @@ if perdidas_senal == horas_totales:
       " de vista segura (<10°)."
   )
   color_pin = "red"
-  st.error(f"🚨 **DICTAMEN:** {veredicto}")
+  st.error(f" **DICTAMEN:** {veredicto}")
 elif riesgo_topografico:
   veredicto = (
       f"NO VIABLE (RECHAZADO): Pendiente local excesiva"
       f" ({info_dem['pend_punto']:.2f}° > 10°). Riesgo de volcadura del módulo."
   )
   color_pin = "red"
-  st.error(f"🚨 **DICTAMEN:** {veredicto}")
+  st.error(f" **DICTAMEN:** {veredicto}")
 elif horas_luz == 0:
   veredicto = (
       "NO VIABLE (RECHAZADO): Noche lunar total durante toda la ventana"
       " seleccionada."
   )
   color_pin = "red"
-  st.error(f"🚨 **DICTAMEN:** {veredicto}")
+  st.error(f" **DICTAMEN:** {veredicto}")
 elif horas_ideales_aterrizaje == 0:
   veredicto = (
       "VIABILIDAD MARGINAL: Hay visibilidad o luz, pero sin ventana de sombras"
       " largas (5°-20°) para detección de obstáculos en descenso."
   )
   color_pin = "orange"
-  st.warning(f"⚠️ **DICTAMEN:** {veredicto}")
+  st.warning(f" **DICTAMEN:** {veredicto}")
 elif horas_peligro_termico > (horas_totales / 2):
   veredicto = (
       "VIABLE CON ADVERTENCIA TÉRMICA: Más del 50% de la ventana tiene"
       " elevación solar >70°."
   )
   color_pin = "orange"
-  st.warning(f"🔥 **DICTAMEN:** {veredicto}")
+  st.warning(f" **DICTAMEN:** {veredicto}")
 else:
   veredicto = (
       f"SITIO VIABLE: Condiciones nominales. Cuenta con"
@@ -341,7 +341,7 @@ else:
       " con Tierra."
   )
   color_pin = "green"
-  st.success(f"✅ **DICTAMEN:** {veredicto}")
+  st.success(f" **DICTAMEN:** {veredicto}")
 
 # Métricas Principales
 c1, c2, c3, c4 = st.columns(4)
@@ -357,7 +357,7 @@ c3.metric(
 c4.metric("Luz Rasante (5°–20°)", f"{horas_ideales_aterrizaje} hrs")
 
 if info_dem:
-  st.markdown("#### 🏔️ Análisis Topográfico (LOLA DEM)")
+  st.markdown("####  Análisis Topográfico (LOLA DEM)")
   d1, d2, d3 = st.columns(3)
   if not np.isnan(info_dem["alt_punto"]):
     d1.metric("Altitud Exacta en Punto", f"{info_dem['alt_punto']:.2f} m")
@@ -375,7 +375,7 @@ if info_dem:
 # ---------------------------------------------------------
 # 5. MAPA INTERACTIVO FOLIUM (PRIMERO ARRIBA)
 # ---------------------------------------------------------
-st.subheader("🌍 Mapa Lunar Interactivo (NASA Moon Trek)")
+st.subheader(" Mapa Lunar Interactivo (NASA Moon Trek)")
 mapa = folium.Map(
     location=[lat, lon],
     zoom_start=zoom_mapa,
@@ -449,7 +449,7 @@ MousePosition(
 ).add_to(mapa)
 
 st.caption(
-    "💡 Haz clic en cualquier punto del mapa para leer sus coordenadas exactas."
+    " Haz clic en cualquier punto del mapa para leer sus coordenadas exactas."
 )
 mapa_data = st_folium(mapa, width=1200, height=500)
 
@@ -457,7 +457,7 @@ if mapa_data and mapa_data.get("last_clicked"):
   c_lat = mapa_data["last_clicked"]["lat"]
   c_lon = mapa_data["last_clicked"]["lng"]
   st.info(
-      f"📍 Coordenadas seleccionadas en el mapa: **Latitud = {c_lat:.5f}° ,"
+      f" Coordenadas seleccionadas en el mapa: **Latitud = {c_lat:.5f}° ,"
       f" Longitud = {c_lon:.5f}°** (ingrésalas en el panel izquierdo con 'Sitio"
       " Lunar: Coordenadas Personalizadas' para simular ese punto)."
   )
@@ -465,7 +465,7 @@ if mapa_data and mapa_data.get("last_clicked"):
 # ---------------------------------------------------------
 # 6. GRÁFICAS COMPACTAS DE TELEMETRÍA Y DEM (DEBAJO DEL MAPA)
 # ---------------------------------------------------------
-st.subheader("📊 Gráficas de Telemetría y Topografía")
+st.subheader(" Gráficas de Telemetría y Topografía")
 
 horas_eje = range(horas_totales)
 grados_sol = [x["grados"] for x in datos_mision["luz"]]
